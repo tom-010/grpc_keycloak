@@ -18,6 +18,66 @@ const (
 	crtFile      = "server.crt"
 )
 
+func main() {
+
+	token, err := login("t.deniffel", "password")
+
+	auth := jwtAuth{
+		Token: token,
+	}
+
+	crtFileContent := filepath.Join(crtFile)
+	creds, err := credentials.NewClientTLSFromFile(crtFileContent, hostname)
+	if err != nil {
+		log.Fatalf("failed to load credentials: %v", err)
+	}
+
+	opts := []grpc.DialOption{
+		grpc.WithPerRPCCredentials(auth),
+		grpc.WithTransportCredentials(creds),
+	}
+
+	conn, err := grpc.Dial(address, opts...)
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	defer conn.Close()
+
+	c := pb.NewUserManagementClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	var new_users = make(map[string]int32)
+	new_users["Alice"] = 43
+	new_users["Bob"] = 30
+
+	for name, age := range new_users {
+		r, err := c.CreateNewUser(ctx, &pb.NewUser{Name: name, Age: age})
+		if err != nil {
+			log.Fatalf("could not create user %v", err)
+		}
+		log.Printf(`User Details:
+		NAME: %s,
+		AGE: %d,
+		ID: %d`, r.GetName(), r.GetAge(), r.GetId())
+	}
+}
+
+type jwtAuth struct {
+	Token string
+}
+
+func (j jwtAuth) GetRequestMetadata(ctx context.Context, in ...string) (map[string]string, error) {
+
+	return map[string]string{
+		"authorization": "Bearer " + j.Token,
+	}, nil
+}
+
+func (j jwtAuth) RequireTransportSecurity() bool {
+	return true
+}
+
 func login(username, password string) (string, error) {
 	crtFileContent := filepath.Join(crtFile)
 	creds, err := credentials.NewClientTLSFromFile(crtFileContent, hostname)
@@ -49,44 +109,4 @@ func login(username, password string) (string, error) {
 	}
 
 	return r.Token, nil
-}
-
-func main() {
-	token, err := login("t.deniffel", "password")
-	log.Println(token)
-
-	crtFileContent := filepath.Join(crtFile)
-	creds, err := credentials.NewClientTLSFromFile(crtFileContent, hostname)
-	if err != nil {
-		log.Fatalf("failed to load credentials: %v", err)
-	}
-
-	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(creds),
-	}
-
-	conn, err := grpc.Dial(address, opts...)
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
-	}
-	defer conn.Close()
-
-	c := pb.NewUserManagementClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
-	var new_users = make(map[string]int32)
-	new_users["Alice"] = 43
-	new_users["Bob"] = 30
-
-	for name, age := range new_users {
-		r, err := c.CreateNewUser(ctx, &pb.NewUser{Name: name, Age: age})
-		if err != nil {
-			log.Fatalf("could not create user %v", err)
-		}
-		log.Printf(`User Details:
-		NAME: %s,
-		AGE: %d,
-		ID: %d`, r.GetName(), r.GetAge(), r.GetId())
-	}
 }
