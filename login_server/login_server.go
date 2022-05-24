@@ -4,37 +4,44 @@ import (
 	"context"
 	"crypto/tls"
 	"log"
-	"math/rand"
 	"net"
 
 	pb "deniffel.com/grpc_keycloak/proto"
+	"github.com/Nerzal/gocloak/v11"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
 
 const (
-	port    = ":50051"
+	port    = ":50052"
 	crtFile = "server.crt"
 	keyFile = "server.key"
+
+	realm           = "skytala"
+	masterRealm     = "master"
+	clientID        = "clientid-03"
+	clientSecret    = "La59FL56BdLR9vBmzrGRXptk0HYfLwxT"
+	keycloakUrl     = "http://localhost:8080"
+	initialPassword = "password"
 )
-
-type UserManagementServer struct {
-	pb.UnimplementedUserManagementServer
-}
-
-func (s *UserManagementServer) CreateNewUser(ctx context.Context, in *pb.NewUser) (*pb.User, error) {
-	log.Printf("Received: %v", in.GetName())
-	var user_id int32 = int32(rand.Intn(100000))
-	return &pb.User{Name: in.GetName(), Age: in.GetAge(), Id: user_id}, nil
-}
 
 type LoginServer struct {
 	pb.UnimplementedLoginServiceServer
 }
 
 func (s *LoginServer) Login(ctx context.Context, in *pb.LoginData) (*pb.LoginResult, error) {
-	log.Printf("Login: %v", in)
-	return &pb.LoginResult{Ok: false}, nil
+	client := gocloak.NewClient(keycloakUrl, gocloak.SetAuthAdminRealms("admin/realms"), gocloak.SetAuthRealms("realms"))
+	restyClient := client.RestyClient()
+	restyClient.SetDebug(false)
+	restyClient.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
+
+	jwt, err := client.Login(ctx, clientID, clientSecret, realm, in.Username, in.Password)
+	if err != nil {
+		log.Printf("could not login at keycloak: %v", err)
+		return &pb.LoginResult{Ok: false}, nil
+	}
+
+	return &pb.LoginResult{Ok: true, Token: jwt.AccessToken}, nil
 }
 
 func main() {
@@ -53,7 +60,7 @@ func main() {
 	}
 
 	s := grpc.NewServer(opts...)
-	pb.RegisterUserManagementServer(s, &UserManagementServer{})
+	pb.RegisterLoginServiceServer(s, &LoginServer{})
 
 	log.Printf("server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
