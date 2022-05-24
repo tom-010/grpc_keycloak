@@ -3,18 +3,32 @@ package main
 import (
 	"context"
 	"log"
+	"path/filepath"
 	"time"
 
 	pb "deniffel.com/grpc_keycloak/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 const (
-	address = "localhost:50051"
+	address  = "localhost:50051"
+	hostname = "localhost"
+	crtFile  = "server.crt"
 )
 
 func main() {
-	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
+	crtFileContent := filepath.Join(crtFile)
+	creds, err := credentials.NewClientTLSFromFile(crtFileContent, hostname)
+	if err != nil {
+		log.Fatalf("failed to load credentials: %v", err)
+	}
+
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(creds),
+	}
+
+	conn, err := grpc.Dial(address, opts...)
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}

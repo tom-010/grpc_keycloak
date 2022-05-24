@@ -2,16 +2,20 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"log"
 	"math/rand"
 	"net"
 
 	pb "deniffel.com/grpc_keycloak/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 const (
-	port = ":50051"
+	port    = ":50051"
+	crtFile = "server.crt"
+	keyFile = "server.key"
 )
 
 type UserManagementServer struct {
@@ -27,10 +31,20 @@ func (s *UserManagementServer) CreateNewUser(ctx context.Context, in *pb.NewUser
 func main() {
 	lis, err := net.Listen("tcp", port)
 	if err != nil {
-		log.Fatalf("failed to listn: %v", err)
+		log.Fatalf("failed to listen: %v", err)
 	}
 
-	s := grpc.NewServer()
+	cert, err := tls.LoadX509KeyPair(crtFile, keyFile)
+	if err != nil {
+		log.Fatalf("failed to load key pair: %s", err)
+	}
+
+	opts := []grpc.ServerOption{
+		grpc.Creds(credentials.NewServerTLSFromCert(&cert)),
+	}
+
+	s := grpc.NewServer(opts...)
+
 	pb.RegisterUserManagementServer(s, &UserManagementServer{})
 	log.Printf("server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
