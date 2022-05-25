@@ -91,7 +91,6 @@ func valid(authorization []string) bool {
 	}
 
 	token := strings.TrimPrefix(authorization[0], "Bearer ") // no not forget the whitespace
-	log.Println(token)
 
 	keyData, err := ioutil.ReadFile("public_key")
 	if err != nil {
