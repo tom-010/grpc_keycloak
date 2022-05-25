@@ -59,7 +59,8 @@ func main() {
 		log.Printf(`User Details:
 		NAME: %s,
 		AGE: %d,
-		ID: %d`, r.GetName(), r.GetAge(), r.GetId())
+		ID: %d
+		CREATED BY: %s`, r.GetName(), r.GetAge(), r.GetId(), r.GetCreatedBy())
 	}
 }
 
